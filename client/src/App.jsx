@@ -92,7 +92,7 @@ function CaseList({reports,user,update,openMap}){
   return <div className="case-list">
     {user.role==='rescuer_pending'&&<div className="team-alert"><ShieldCheck size={17}/>Rescue-team access is pending administrator approval. Until then, you can only view reports submitted by your account.</div>}
     {reports.map(r=><article className="case-row" key={r._id}>
-      <div className="case-thumb">{r.imageUrl?<img src={API_ROOT+r.imageUrl} alt="Reported animal"/>:<PawPrint/>}</div>
+      <div className="case-thumb">{r.imageUrl?<img src={r.imageUrl.startsWith('http')?r.imageUrl:API_ROOT+r.imageUrl} alt="Reported animal"/>:<PawPrint/>}</div>
       <div className="case-details">
         <div className="case-meta"><b>{r.animalType}</b><span className={`status ${r.status}`}>{r.status==='pending_rescue'?'Pending rescue':r.status}</span>{(r.emergency||r.priority==='emergency')&&<span className="emergency-tag"><Siren size={12}/> Emergency</span>}</div>
         <h4>{r.description}</h4>

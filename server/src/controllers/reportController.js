@@ -1,29 +1,43 @@
 const Report = require('../models/Report');
-const path = require('path');
 const { getFirstAid } = require('../services/firstAid');
 const { screenImage } = require('../services/visionScreening');
+const { storeReportImage, deleteReportImage, reportForClient } = require('../services/reportImageStorage');
 const { subscribe, publishReport } = require('../services/reportEvents');
 exports.create = async (req,res,next) => {
   try {
     const {animalType,description,location,lat,lng,priority,emergency,injuryType} = req.body;
     if (!animalType || !description) return res.status(400).json({message:'Animal type and description are required'});
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : '';
-    // Demo screening placeholder. Replace with validated model inference before production.
-    const findings = imageUrl ? ['Image received for review'] : ['No image supplied'];
     const isEmergency = emergency === 'true' || emergency === true || priority === 'emergency';
-    const report = await Report.create({
-      reporter:req.user.id,animalType,description,location:location||'Location not provided',
-      coordinates:lat && lng ? {lat:Number(lat),lng:Number(lng)} : undefined,
-      imageUrl,suspectedFindings:findings,priority:isEmergency?'emergency':(priority||'normal'),
-      emergency:isEmergency,rescueRequested:isEmergency,injuryType:injuryType||'Unknown'
-    });
-    publishReport({...report.toObject(),reporter:{_id:req.user.id,name:req.user.name,email:req.user.email}},'created');
-    res.status(201).json({report,firstAid:report.firstAid,aiScreening:report.aiScreening,emergencyAcknowledged:isEmergency});
+    const image = req.file ? await storeReportImage(req.file) : {imageUrl:'',imageKey:''};
+    let report;
+    try {
+      report = await Report.create({
+        reporter:req.user.id,animalType,description,location:location||'Location not provided',
+        coordinates:lat && lng ? {lat:Number(lat),lng:Number(lng)} : undefined,
+        ...image,suspectedFindings:image.imageUrl || image.imageKey ? ['Image received for review'] : ['No image supplied'],
+        priority:isEmergency?'emergency':(priority||'normal'),
+        emergency:isEmergency,
+        rescueRequested:isEmergency,
+        injuryType:injuryType||'Unknown'
+      });
+    } catch (error) {
+      if (image.imageKey) {
+        try {
+          await deleteReportImage(image.imageKey);
+        } catch (cleanupError) {
+          console.error(`Unable to remove unreferenced report image ${image.imageKey}:`, cleanupError);
+        }
+      }
+      throw error;
+    }
+    const clientReport = await reportForClient(report);
+    publishReport({...clientReport,reporter:{_id:req.user.id,name:req.user.name,email:req.user.email}},'created');
+    res.status(201).json({report:clientReport,firstAid:report.firstAid,aiScreening:report.aiScreening,emergencyAcknowledged:isEmergency});
     Promise.all([req.file ? screenImage(req.file) : null, getFirstAid(description, isEmergency)])
       .then(async ([aiScreening, firstAid]) => {
         const enrichedReport = await Report.findByIdAndUpdate(report.id, {aiScreening, firstAid}, {new:true})
           .populate('reporter','name email');
-        if (enrichedReport) publishReport(enrichedReport.toObject());
+        if (enrichedReport) publishReport(await reportForClient(enrichedReport));
       })
       .catch(error => console.error(`Report enrichment failed for ${report.id}:`, error));
   } catch(e){next(e);}
@@ -53,7 +67,7 @@ exports.list = async (req,res,next) => {
       filter.updatedAt = {$gte:since};
     }
     const reports = await Report.find(filter).populate('reporter','name email').sort({createdAt:-1}).lean();
-    res.json({reports});
+    res.json({reports:await Promise.all(reports.map(reportForClient))});
   } catch(e){next(e);}
 };
 exports.getOne = async (req,res,next) => {
@@ -61,7 +75,7 @@ exports.getOne = async (req,res,next) => {
     const report = await Report.findById(req.params.id).populate('reporter','name email');
     if (!report) return res.status(404).json({message:'Report not found'});
     if (!['admin','rescuer'].includes(req.user.role) && String(report.reporter._id) !== req.user.id) return res.status(403).json({message:'Access denied'});
-    res.json({report});
+    res.json({report:await reportForClient(report)});
   } catch(e){next(e);}
 };
 exports.updateStatus = async (req,res,next) => {
@@ -93,7 +107,8 @@ exports.updateStatus = async (req,res,next) => {
     updates.forEach(message => report.rescueUpdates.push({message,by:req.user.name}));
     await report.save();
     await report.populate('reporter','name email');
-    publishReport(report.toObject());
-    res.json({report});
+    const clientReport = await reportForClient(report);
+    publishReport(clientReport);
+    res.json({report:clientReport});
   } catch(e){next(e);}
 };

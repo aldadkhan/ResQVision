@@ -184,7 +184,29 @@ For local development over HTTP only, add `android:usesCleartextTraffic="true"` 
 - No production-grade trained animal injury detector, verified localization/bounding boxes, or veterinary diagnostic model is included. Gemini visual screening is an optional general multimodal assistant and must be human-verified.
 - No automatic dispatch, verified rescue-partner directory, live responder tracking, SMS/WhatsApp/FCM push notifications, email delivery or call-centre integration is included.
 - Settings toggles are local preferences, not connected to a notification backend or account profile API.
-- Add HTTPS, secure cloud image storage, rate limiting, request validation, audit logs, malware scanning, role administration, backup/retention policies and privacy consent before public launch.
+- Configure HTTPS and private S3 storage, then add rate limiting, request validation, audit logs, malware scanning, role administration, backup/retention policies and privacy consent before public launch.
 - Add verified local rescue contacts and test emergency call behaviour on actual devices before any field pilot.
 
 See `docs/UPGRADE-AND-OPERATIONS.md` and `docs/API-TESTING.md` for issue resolutions and API checks.
+
+## 7. Deploy the web app and API
+
+The web frontend can be deployed to Vercel, the API to Render, MongoDB to Atlas, and report photos to a private AWS S3 bucket. The Flutter app can continue using the deployed API URL. The optional Flask image-AI service is not required for the web app; without it, the API returns the human-review fallback.
+
+### Deploy the API to Render
+
+1. Create a MongoDB Atlas cluster and database user. Allow connections from Render in Atlas Network Access; use a strong database password.
+2. Create a private S3 bucket with public access blocked. Create an AWS IAM access key limited to `s3:PutObject`, `s3:GetObject`, and `s3:DeleteObject` for that bucket's `reports/*` prefix.
+3. In Render, create a Blueprint from this repository and use the root `render.yaml`, or create a Web Service with root directory `server`, build command `npm ci`, and start command `npm start`.
+4. Set the Render environment values for `MONGO_URI`, `JWT_SECRET`, `CLIENT_URL`, `AWS_S3_BUCKET`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY`. Generate a unique long random JWT secret. Do not commit credentials or paste them into source files.
+5. After deploying, check `https://<your-api-host>/api/health`.
+
+The API stores S3 object keys in MongoDB and returns short-lived signed image URLs to authorized API clients. If all AWS storage settings are absent, local development continues to store uploads under `server/uploads`.
+
+### Deploy the web client to Vercel
+
+1. Import this GitHub repository into Vercel and set the project root directory to `client`.
+2. Set `VITE_API_URL` to `https://<your-api-host>/api`, then deploy. `client/vercel.json` provides the SPA route fallback.
+3. Copy the deployed Vercel origin (for example, `https://<your-site>.vercel.app`) into the Render `CLIENT_URL` environment variable and redeploy the API.
+
+For Flutter, set `apiBaseUrl` in `mobile/lib/config.dart` to the deployed API's `/api` URL. Keep all MongoDB, AWS, and JWT credentials in the hosting provider's secret environment-variable settings.

@@ -4,6 +4,7 @@ const reportSchema = new mongoose.Schema({
   animalType:{type:String,required:true},
   description:{type:String,required:true,maxlength:1200},
   imageUrl:{type:String,default:''},
+  imageKey:{type:String,default:''},
   location:{type:String,default:'Location not provided'},
   coordinates:{lat:Number,lng:Number},
   suspectedFindings:[String],

@@ -5,7 +5,8 @@ const crypto=require('crypto');
 const {protect,allowRoles}=require('../middleware/auth');
 const c=require('../controllers/reportController');
 const {getFirstAid}=require('../services/firstAid');
-const storage=multer.diskStorage({
+const {isS3Enabled}=require('../services/reportImageStorage');
+const storage=isS3Enabled?multer.memoryStorage():multer.diskStorage({
  destination:(req,file,cb)=>cb(null,path.join(__dirname,'../../',process.env.UPLOAD_DIR||'uploads')),
  filename:(req,file,cb)=>cb(null,crypto.randomBytes(12).toString('hex')+path.extname(file.originalname).toLowerCase())
 });

@@ -45,7 +45,7 @@ An emergency report is persisted with `emergency=true`, `rescueRequested=true` a
 2. Add Firebase Cloud Messaging and verified SMS/email notifications with delivery receipts.
 3. Add a trained, annotated animal-injury dataset and evaluate per-class precision/recall, false negatives and species bias before enabling automated severity suggestions.
 4. Implement explainable object detection with validated bounding boxes and confidence thresholds; force human review for low confidence.
-5. Add secure cloud object storage, signed image URLs, file scanning, API rate limits, audit trails, retention controls and automated backups.
+5. Configure the included private S3 storage and signed image URLs; add file scanning, API rate limits, audit trails, retention controls and automated backups.
 6. Add full localization for English, Kannada and Malayalam rather than only saving a language preference.
 7. Add admin-managed roles, responder profiles, assignment history, SLA timers and case analytics.
 
